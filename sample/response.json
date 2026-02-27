@@ -1,0 +1,63 @@
+{  
+  "data": {  
+    "columnNamesByDeviceType": {  
+      "u": ["DeviceType", "UtcTimestampNs", "DeviceId", "PingLatencyMsAvg", "PingDropRateAvg"],
+      "r": ["DeviceType", "UtcTimestampNs", "DeviceId", "Uptime", "PingLatencyMs"],
+      "i": ["DeviceType", "UtcTimestampNs", "DeviceId", "Ipv4", "Ipv6Ue", "Ipv6Cpe"]
+    },
+    "values": [  
+      ["u", 1681879752000000000, "ut12345678-a12b3456-123456c1", 47, 0.000041],  
+      ["u", 1681879752000000000, "ut12345678-a12b3456-123456c2", 48, 0],  
+      ["u", 1681879753000000000, "ut12345678-a12b3456-123456c3", 44, 0.000046],
+      ["r", 1695688197078032600, "Router-012300205003000000000000", 1001, 50], 
+      ["r", 1695688197078032600, "Router-812300200000001050000000", 119900, 54], 
+      ["r", 1695688197078032600, "Router-000007685000000000000001", 18200, 49],
+      ["i", 1681879752000000000, "ut01300a00-a00d2000-100102d4", ["123.123.123.123"], ["1234:1245:1256::1267/64"], ["1234:1245:1256::2345/56"]],
+      ["i", 1681879752000000000, "ut01100a00-c00b2000-a0010111", ["456.456.456.456"], ["1234:1245:1256::1267/64", "1234:1245:1256::1289/64"], ["1234:1245:1256::2345/56", "1234:1245:1256::2367/56"]],
+      ["i", 1681879753000000000, "ut03300a00-c00b2000-a0010333", ["789.789.789.789"], [], []]
+    ]
+  },  
+  "metadata": {
+      "enums": {
+          "DeviceType": {
+              "u": "UserTerminal",
+              "r": "Router",
+              "d": "UserTerminalDataUsage",
+              "i": "IpAllocs"
+          },
+          "AlertsByDeviceType": {
+              "u": {
+                  "50": "ethernet_slow_10mbps",
+                  "51": "ethernet_slow_100mbps",
+                  "52": "power_supply_thermal_throttling",
+                  "53": "actuator_motor_stuck",
+                  "54": "mast_not_vertical",
+                  "55": "disabled_no_active_service_line",
+                  "56": "disabled_too_far_from_service_address",
+                  "57": "disabled_no_service_in_ocean",
+                  "83": "disabled_blocked_country",
+                  "84": "disabled_data_usage_exceeded_quota",
+                  "89": "disabled_cell_is_disabled",
+                  "60": "disabled_moving_too_fast",
+                  "93": "disabled_roam_restricted",
+                  "94": "disabled_unknown_location",
+                  "95": "disabled_account_disabled",
+                  "96": "disabled_unsupported_version",
+                  "61": "power_disconnect_detected",
+                  "62": "pop_change",
+                  "82": "software_update_reboot_pending",
+                  "97": "data_overage_rate_limited",
+                  "63": "unable_to_align",
+                  "66": "high_time_obstruction",
+                  "80": "thermal_shutdown",
+                  "81": "thermal_throttling"
+              },
+              "r": {
+                  "52": "sandbox_disabled",
+                  "55": "offline_networks_disabled",
+                  "54": "geo_fenced"
+              }
+          }
+      }
+  }
+}
