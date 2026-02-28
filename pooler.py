@@ -1,8 +1,10 @@
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
+from loguru import logger
 from psycopg import sql
 import requests
 import psycopg
@@ -34,8 +36,8 @@ def get_starlink_access_token() -> str:
     resp = requests.post(
         "https://starlink.com/api/auth/connect/token",
         data={
-            "client_id": os.environ.get("CLIENT_ID"),
-            "client_secret": os.environ.get("CLIENT_SECRET"),
+            "client_id": os.environ.get("STARLINK_CLIENT_ID"),
+            "client_secret": os.environ.get("STARLINK_CLIENT_SECRET"),
             "grant_type": "client_credentials",
         },
         timeout=30,
@@ -78,6 +80,7 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
     telemetry_values = response_json["data"]["values"]
     cols_by_type = response_json["data"]["columnNamesByDeviceType"]
 
+    logger.info(f"---->> Values len is: {len(telemetry_values)}<<--------")
     cols_u = cols_by_type.get("u", [])
     cols_r = cols_by_type.get("r", [])
     cols_i = cols_by_type.get("i", [])
@@ -93,6 +96,16 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
         if isinstance(value, list):
             return [int(x) for x in value]
         return [int(value)]
+
+    def normalize_ip(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, list):
+            if not value:
+                return None
+            value = value[0]
+        s = str(value).strip()
+        return s or None
 
     def to_bool(v: Any) -> Any:
         if v is None:
@@ -190,9 +203,9 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
                 (
                     ts,
                     str(row.get("DeviceId") or ""),
-                    row.get("Ipv4"),
-                    row.get("Ipv6Ue"),
-                    row.get("Ipv6Cpe"),
+                    normalize_ip(row.get("Ipv4")),
+                    normalize_ip(row.get("Ipv6Ue")),
+                    normalize_ip(row.get("Ipv6Cpe")),
                     utc_ns,
                 )
             )
@@ -200,17 +213,18 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
         else:
             # Unknown device type; ignore safely
             continue
-
     return rows_u, rows_r, rows_i
 
 
 def copy_rows(cur: psycopg.Cursor, table: str, columns: List[str], rows: List[Tuple]) -> None:
-    # Fast bulk ingestion using COPY
     if not rows:
         return
 
-    query = sql.SQL("COPY {} ({}) FROM STDIN").format(
-        sql.Identifier("starlink", "telemetry_u"),
+    schema, tbl = table.split(".", 1)
+
+    query = sql.SQL("COPY {}.{} ({}) FROM STDIN").format(
+        sql.Identifier(schema),
+        sql.Identifier(tbl),
         sql.SQL(", ").join(sql.Identifier(c) for c in columns),
     )
 
@@ -315,6 +329,10 @@ def poll_stream():
           an empty response if no new data is available.
     """
     access_token = get_starlink_access_token()
+    if not access_token:
+        logger.error("Failed to obtain Starlink access token. Exiting.")
+        sys.exit(1)
+
     conn = connect_db()
 
     while True:
@@ -330,20 +348,22 @@ def poll_stream():
                 timeout=40,
             )
 
-            if resp.status_code != 200:
+            if resp.status_code in (401, 403):
                 # Token expires ~15 minutes, refresh 
                 access_token = get_starlink_access_token()
                 continue
+            resp.raise_for_status()
 
             payload = resp.json()
             telemetry = payload["data"]["values"]
             if not telemetry:
+                logger.info("No telemetry received")
                 continue
 
             rows_u, rows_r, rows_i = parse_stream_payload(payload)
             if rows_u or rows_r or rows_i:
                 insert_rows(conn, rows_u, rows_r, rows_i)
-
+                logger.info(f"Inserted: {len(rows_u)}U, {len(rows_r)}R, {len(rows_i)}I")
         except (requests.RequestException, ValueError):
             # Network/JSON issues: small backoff
             time.sleep(2)
