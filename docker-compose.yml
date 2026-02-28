@@ -28,5 +28,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - timescaledb
+    restart: unless-stopped
+
 volumes:
   timescaledb_data:
