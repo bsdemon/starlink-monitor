@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
+import h3
 from loguru import logger
 from psycopg import sql
 import requests
@@ -46,6 +47,12 @@ def get_starlink_access_token() -> str:
     return resp.json()["access_token"]
 
 
+def h3_to_latlon(h3_cell_id: int) -> tuple[float, float]:
+    # H3 Python works with hex string, so convert int -> hex
+    h = format(h3_cell_id, "x")
+    lat, lon = h3.cell_to_latlng(h)  # returns (lat, lon)
+    return lat, lon
+
 def ns_to_ts(utc_timestamp_ns: int) -> datetime:
     return datetime.fromtimestamp(utc_timestamp_ns / 1e9, tz=timezone.utc)
 
@@ -73,9 +80,9 @@ def filter_router_row(row: Dict[str, Any]) -> Dict[str, Any]:
 def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], List[Tuple], List[Tuple]]:
     """
     Returns tuples ready for insert:
-      - rows_u for starlink.telemetry_u
-      - rows_r for starlink.telemetry_r
-      - rows_i for starlink.telemetry_i
+      - rows_u for telemetry_u
+      - rows_r for telemetry_r
+      - rows_i for telemetry_i
     """
     telemetry_values = response_json["data"]["values"]
     cols_by_type = response_json["data"]["columnNamesByDeviceType"]
@@ -135,11 +142,12 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
             utc_ns = int(row["UtcTimestampNs"])
             ts = ns_to_ts(utc_ns)
             active_alerts_arr = normalize_alerts(row.get("ActiveAlerts"))
-
+            lat, lon = h3_to_latlon(int(row["H3CellId"])) if row.get("H3CellId") is not None else (None, None)
             rows_u.append(
                 (
                     ts,
                     str(row.get("DeviceId") or ""),
+                    "u",
                     float(row["DownlinkThroughput"]) if row.get("DownlinkThroughput") is not None else None,
                     float(row["UplinkThroughput"]) if row.get("UplinkThroughput") is not None else None,
                     float(row["PingDropRateAvg"]) if row.get("PingDropRateAvg") is not None else None,
@@ -154,6 +162,8 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
                     row.get("RunningSoftwareVersion"),
                     active_alerts_arr,
                     utc_ns,
+                    lat,
+                    lon,
                 )
             )
 
@@ -169,6 +179,7 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
                 (
                     ts,
                     str(row.get("DeviceId") or ""),
+                    "r",
                     int(row["WifiUptimeS"]) if row.get("WifiUptimeS") is not None else None,
                     row.get("WifiSoftwareVersion"),
                     row.get("WifiHardwareVersion"),
@@ -203,6 +214,7 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
                 (
                     ts,
                     str(row.get("DeviceId") or ""),
+                    "i",
                     normalize_ip(row.get("Ipv4")),
                     normalize_ip(row.get("Ipv6Ue")),
                     normalize_ip(row.get("Ipv6Cpe")),
@@ -220,11 +232,10 @@ def copy_rows(cur: psycopg.Cursor, table: str, columns: List[str], rows: List[Tu
     if not rows:
         return
 
-    schema, tbl = table.split(".", 1)
+    table_sql = sql.Identifier(table)
 
-    query = sql.SQL("COPY {}.{} ({}) FROM STDIN").format(
-        sql.Identifier(schema),
-        sql.Identifier(tbl),
+    query = sql.SQL("COPY {} ({}) FROM STDIN").format(
+        table_sql,
         sql.SQL(", ").join(sql.Identifier(c) for c in columns),
     )
 
@@ -237,10 +248,11 @@ def insert_rows(conn: psycopg.Connection, rows_u: List[Tuple], rows_r: List[Tupl
     with conn.cursor() as cur:
         copy_rows(
             cur,
-            "starlink.telemetry_u",
+            "telemetry_u",
             [
                 "ts",
                 "device_id",
+                "device_type",
                 "downlink_throughput_mbps",
                 "uplink_throughput_mbps",
                 "ping_drop_rate_avg",
@@ -253,16 +265,19 @@ def insert_rows(conn: psycopg.Connection, rows_u: List[Tuple], rows_r: List[Tupl
                 "running_software_version",
                 "active_alerts",
                 "utc_timestamp_ns",
+                "ut_lat",
+                "ut_lon",
             ],
             rows_u,
         )
 
         copy_rows(
             cur,
-            "starlink.telemetry_r",
+            "telemetry_r",
             [
                 "ts",
                 "device_id",
+                "device_type",
                 "wifi_uptime_s",
                 "wifi_software_version",
                 "wifi_hardware_version",
@@ -290,8 +305,16 @@ def insert_rows(conn: psycopg.Connection, rows_u: List[Tuple], rows_r: List[Tupl
 
         copy_rows(
             cur,
-            "starlink.telemetry_i",
-            ["ts", "device_id", "ipv4", "ipv6_ue", "ipv6_cpe", "utc_timestamp_ns"],
+            "telemetry_i",
+            [
+                "ts",
+                "device_id",
+                "device_type",
+                "ipv4",
+                "ipv6_ue",
+                "ipv6_cpe",
+                "utc_timestamp_ns",
+            ],
             rows_i,
         )
 
@@ -368,8 +391,8 @@ def poll_stream():
             # Network/JSON issues: small backoff
             time.sleep(2)
             continue
-        except psycopg.Error:
-            # DB issues: rollback and retry
+        except psycopg.Error as e:
+            logger.exception(f"DB error during ingest: {e}")
             try:
                 conn.rollback()
             except Exception:
