@@ -5,6 +5,7 @@ description = "Simple Starlink monitoring tool"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "django-cors-headers>=4.9.0",
     "django-ninja>=1.5.3",
     "django-timescaledb>=0.2.13",
     "environs>=14.6.0",
