@@ -126,7 +126,7 @@ def get_timeseries(device_id: str, from_str: str, to_str: str, bucket: str, metr
     interval = BUCKET_TO_INTERVAL[bucket_final]
     metric_list = parse_metrics(metrics)
 
-    select_parts = [f"AVG({METRICS_TO_SQL_COLUMN[m]}) AS {m}" for m in metric_list]
+    select_parts = [f'AVG({METRICS_TO_SQL_COLUMN[m]}) AS "{m}"' for m in metric_list]
     rows = get_timeseries_rows(device_id, dt_from, dt_to, interval, select_sql=", ".join(select_parts))
     events = get_alert_events(device_id, dt_from, dt_to, interval)
 
