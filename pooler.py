@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import json
+import hashlib
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
@@ -11,26 +13,7 @@ import requests
 import psycopg
 
 
-ROUTER_EXCLUDED_COLUMNS = {
-    "Clients2GhzRxRateMbpsMin",
-    "Clients2GhzRxRateMbpsMax",
-    "Clients2GhzRxRateMbpsAvg",
-    "Clients2GhzTxRateMbpsMin",
-    "Clients2GhzTxRateMbpsMax",
-    "Clients2GhzTxRateMbpsAvg",
-    "Clients5GhzRxRateMbpsMin",
-    "Clients5GhzRxRateMbpsMax",
-    "Clients5GhzRxRateMbpsAvg",
-    "Clients5GhzTxRateMbpsMin",
-    "Clients5GhzTxRateMbpsMax",
-    "Clients5GhzTxRateMbpsAvg",
-    "Clients2GhzSignalStrengthMin",
-    "Clients2GhzSignalStrengthMax",
-    "Clients2GhzSignalStrengthAvg",
-    "Clients5GhzSignalStrengthMin",
-    "Clients5GhzSignalStrengthMax",
-    "Clients5GhzSignalStrengthAvg",
-}
+METADATA_KEY = "telemetry_stream_metadata"
 
 
 def get_starlink_access_token() -> str:
@@ -45,6 +28,13 @@ def get_starlink_access_token() -> str:
     )
     resp.raise_for_status()
     return resp.json()["access_token"]
+
+def compute_checksum(obj: Any) -> str:
+    """
+    Compute stable sha256 checksum for a JSON-serializable object.
+    """
+    raw = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def h3_to_latlon(h3_cell_id: int) -> tuple[float, float]:
@@ -69,12 +59,6 @@ def connect_db() -> psycopg.Connection:
 def build_row_dict(columns: List[str], values: List[Any]) -> Dict[str, Any]:
     """ Map column name -> value by position """
     return dict(zip(columns, values))
-
-
-def filter_router_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    for c in ROUTER_EXCLUDED_COLUMNS:
-        row.pop(c, None)
-    return row
 
 
 def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], List[Tuple], List[Tuple]]:
@@ -169,7 +153,7 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
 
         elif device_type == "r":
             row = build_row_dict(cols_r, item)
-            row = filter_router_row(row)
+            # row = filter_router_row(row)
 
             utc_ns = int(row["UtcTimestampNs"])
             ts = ns_to_ts(utc_ns)
@@ -320,6 +304,43 @@ def insert_rows(conn: psycopg.Connection, rows_u: List[Tuple], rows_r: List[Tupl
 
     conn.commit()
 
+def upsert_metadata(conn: psycopg.Connection, payload: Dict[str, Any]) -> None:
+    """
+    Upsert Starlink metadata into DB only if checksum changes.
+    Uses psycopg connection directly (no Django ORM required).
+    """
+    meta = payload.get("metadata")
+    if not meta:
+        return
+
+    checksum = compute_checksum(meta)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT checksum FROM starlink_metadata WHERE key = %s",
+            (METADATA_KEY,),
+        )
+        row = cur.fetchone()
+        if row and row[0] == checksum:
+            return  # unchanged
+
+        cur.execute(
+            """
+            INSERT INTO starlink_metadata (key, payload, checksum, updated_at)
+            VALUES (%s, %s::jsonb, %s, NOW())
+            ON CONFLICT (key) DO UPDATE
+              SET payload = EXCLUDED.payload,
+                  checksum = EXCLUDED.checksum,
+                  updated_at = NOW()
+            """,
+            (METADATA_KEY, json.dumps(meta, ensure_ascii=False), checksum),
+        )
+def safe_rollback(conn):
+    try:
+        if conn and not conn.closed:
+            conn.rollback()
+    except Exception as exc:
+        logger.exception("Rollback failed: %s", exc)
 
 def poll_stream():
     """
@@ -378,6 +399,15 @@ def poll_stream():
             resp.raise_for_status()
 
             payload = resp.json()
+
+            try:
+                upsert_metadata(conn, payload)
+                conn.commit()  # commit metadata write (small and safe)
+            except Exception as e:
+                # Metadata should not block ingestion.
+                logger.warning(f"Metadata upsert failed: {e}")
+                safe_rollback(conn)
+
             telemetry = payload["data"]["values"]
             if not telemetry:
                 logger.info("No telemetry received")
@@ -393,10 +423,7 @@ def poll_stream():
             continue
         except psycopg.Error as e:
             logger.exception(f"DB error during ingest: {e}")
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+            safe_rollback(conn)
             time.sleep(2)
             continue
 

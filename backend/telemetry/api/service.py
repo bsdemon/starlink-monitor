@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from typing import List
 
 from ninja.errors import HttpError
 
@@ -12,7 +13,9 @@ from .repository import (
     get_day_stats, 
     get_alert_counts, 
     get_timeseries_rows, 
-    get_alert_events
+    get_alert_events,
+    get_metadata,
+
 )
 from .helpers import clamp_bucket, parse_iso_datetime
 
@@ -51,6 +54,31 @@ def parse_metrics(metrics: str | None) -> list[str]:
     return out
 
 
+def resolve_alert_codes(
+    codes: List[int],
+    device_type: str,
+    metadata_key: str = "telemetry_stream_metadata",
+) -> List[str]:
+    """
+    Convert alert numeric codes to their string representations
+    using stored Starlink metadata JSON.
+    """
+    payload = get_metadata(metadata_key)
+
+    alerts_map = (
+        payload
+        .get("enums", {})
+        .get("AlertsByDeviceType", {})
+        .get(device_type, {})
+    )
+
+    # JSON keys are strings, so convert int -> str
+    return list([
+        alerts_map.get(str(code)).replace("_", " ").upper()
+        for code in codes
+        if str(code) in alerts_map
+    ])
+
 def get_devices()-> list[dict]:
     rows = list_devices_latest_location()
     return [
@@ -81,6 +109,8 @@ def get_summary(device_id: str, day_str: str)-> dict:
     counts_rows = get_alert_counts(device_id, dt_from, dt_to)
 
     active = list(snap["active_alerts"]) if snap and snap.get("active_alerts") is not None else []
+    # if len(active) > 0:
+    #     active = resolve_alert_codes(active, dev["device_type"])
 
     return {
         "device": {
@@ -130,6 +160,9 @@ def get_timeseries(device_id: str, from_str: str, to_str: str, bucket: str, metr
     rows = get_timeseries_rows(device_id, dt_from, dt_to, interval, select_sql=", ".join(select_parts))
     events = get_alert_events(device_id, dt_from, dt_to, interval)
 
+    events_str: List[str] = []
+    if len(events) != 0:
+        events_str = resolve_alert_codes(events, "u")
     series: dict[str, list[list[int | float | None]]] = {m: [] for m in metric_list}
     for r in rows:
         t_ms = int(r["t_ms"])
@@ -142,5 +175,5 @@ def get_timeseries(device_id: str, from_str: str, to_str: str, bucket: str, metr
         "from": dt_from.isoformat().replace("+00:00", "Z"),
         "to": dt_to.isoformat().replace("+00:00", "Z"),
         "series": series,
-        "events": {"alerts": events},
+        "events": {"alerts": events_str},
     }

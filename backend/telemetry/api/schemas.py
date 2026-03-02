@@ -49,11 +49,6 @@ class SnapshotOut(Schema):
     secondsUntilSwupdateRebootPossible: int | None = None
 
 
-class AlertsOut(Schema):
-    active: list[int]
-    countsByAlertId: dict[str, int]
-
-
 class DayStatsOut(Schema):
     range: RangeOut
     downlinkMbps: StatTriple
@@ -63,6 +58,13 @@ class DayStatsOut(Schema):
     obstructionPercentTime: StatTriple
     signalQuality: StatTriple
 
+class AlertEvent(Schema):
+    ts: int
+    id: int | None = None
+    code: str        
+
+class AlertsOut(Schema):
+    alerts: list[AlertEvent] = []
 
 class SummaryOut(Schema):
     device: DeviceOut
@@ -85,3 +87,14 @@ class TimeseriesOut(Schema):
     events: dict[str, Any] | None = None
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class IngestMetaOut(Schema):
+    runId: str
+    deviceId: str | None = None
+    status: str                 # "ok" | "error"
+    rowsInserted: int | None = None
+    fromTs: str | None = None   # ISO
+    toTs: str | None = None     # ISO
+    rollbackOk: bool | None = None
+    error: str | None = None

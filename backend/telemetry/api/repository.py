@@ -5,6 +5,8 @@ from typing import Any
 
 from django.db import connection
 
+from telemetry.models import StarlinkMetadata
+
 from .constants import UT_TABLE
 
 
@@ -133,7 +135,7 @@ def get_timeseries_rows(
         return _fetchall_dict(cur)
 
 
-def get_alert_events(device_id: str, dt_from: datetime, dt_to: datetime, interval: str) -> list[list[int]]:
+def get_alert_events(device_id: str, dt_from: datetime, dt_to: datetime, interval: str) -> list[int]:
     sql = f"""
         SELECT
             (EXTRACT(EPOCH FROM time_bucket(%(interval)s::interval, t.ts)) * 1000)::bigint AS t_ms,
@@ -148,4 +150,12 @@ def get_alert_events(device_id: str, dt_from: datetime, dt_to: datetime, interva
     """
     with connection.cursor() as cur:
         cur.execute(sql, {"interval": interval, "device_id": device_id, "dt_from": dt_from, "dt_to": dt_to})
-        return [[int(t_ms), int(alert_id)] for (t_ms, alert_id) in cur.fetchall()]
+        return [int(alert_id) for alert_id in cur.fetchall()]
+
+
+def get_metadata(metadata_key: str) -> list[dict[str, Any]]:
+    try:
+        meta = StarlinkMetadata.objects.get(pk=metadata_key)
+    except StarlinkMetadata.DoesNotExist:
+        return []
+    return meta.payload

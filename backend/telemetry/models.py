@@ -160,3 +160,17 @@ class TelemetryI(TimescaleModel):
         ]
     def __str__(self) -> str:
         return f"I {self.device_id} @ {self.ts.isoformat()}"
+    
+
+class StarlinkMetadata(models.Model):
+    """
+    Stores Starlink telemetry metadata (enums/mappings) as JSON.
+    Metadata changes rarely; we update only when checksum changes.
+    """
+    key = models.TextField(primary_key=True)  # e.g. "telemetry_stream_metadata"
+    payload = models.JSONField()
+    checksum = models.CharField(max_length=64, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "starlink_metadata"
