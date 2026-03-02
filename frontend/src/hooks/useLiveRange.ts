@@ -1,39 +1,41 @@
-// src/hooks/useLiveRange.ts
-
 import { useEffect, useState } from "react";
+
+type Range = { from: string; to: string };
+
+function makeRange(windowMs: number): Range {
+  const toMs = Date.now();
+  const fromMs = toMs - windowMs;
+  return {
+    from: new Date(fromMs).toISOString(),
+    to: new Date(toMs).toISOString(),
+  };
+}
 
 export function useLiveRange(opts: {
   enabled: boolean;
-  windowMs: number;     // e.g. 6h
-  tickMs: number;       // e.g. 15s
-}) {
-  const [range, setRange] = useState<{ from: string; to: string }>(() => {
-    const now = Date.now();
-    return {
-      from: new Date(now - opts.windowMs).toISOString(),
-      to: new Date(now).toISOString(),
-    };
-  });
+  windowMs: number;
+  tickMs: number;
+}): Range {
+  const { enabled, windowMs, tickMs } = opts;
 
-  // Reset when enabled toggles on (e.g. device selected)
-  useEffect(() => {
-    if (!opts.enabled) return;
-    const now = Date.now();
-    setRange({
-      from: new Date(now - opts.windowMs).toISOString(),
-      to: new Date(now).toISOString(),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.enabled]);
+  const [range, setRange] = useState<Range>(() => makeRange(windowMs));
 
-  // Advance "to"
+  // ✅ Recompute immediately when enabled/windowMs changes
   useEffect(() => {
-    if (!opts.enabled) return;
+    if (!enabled) return;
+    setRange(makeRange(windowMs));
+  }, [enabled, windowMs]);
+
+  // ✅ Keep "to" moving
+  useEffect(() => {
+    if (!enabled) return;
+
     const id = window.setInterval(() => {
-      setRange((r) => ({ ...r, to: new Date().toISOString() }));
-    }, opts.tickMs);
+      setRange(makeRange(windowMs));
+    }, tickMs);
+
     return () => window.clearInterval(id);
-  }, [opts.enabled, opts.tickMs]);
+  }, [enabled, windowMs, tickMs]);
 
   return range;
 }

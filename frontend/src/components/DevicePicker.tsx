@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchDevices, type Device } from "../api/devices";
 
 type Props = {
@@ -12,64 +12,62 @@ export function DevicePicker({ onSelect, selectedId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let alive = true;
+    let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
+
       try {
         const data = await fetchDevices();
-        if (!alive) return;
+        if (cancelled) return;
 
         setDevices(data);
 
-        if (!selectedId && data.length > 0) {
-          onSelect(data[0]);
-        }
+        // Auto-select first device when nothing is selected
+        if (!selectedId && data.length > 0) onSelect(data[0]);
       } catch (e) {
-        if (!alive) return;
+        if (cancelled) return;
         setError(e instanceof Error ? e.message : "Unknown error");
       } finally {
-        if (alive) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
     return () => {
-      alive = false;
+      cancelled = true;
     };
-  }, [onSelect, selectedId]);
+  }, [selectedId, onSelect]);
 
-  const options = useMemo(
-    () =>
-      devices.map((d) => ({
-        id: d.deviceId,
-        label: d.name ? `${d.name} (${d.deviceId})` : d.deviceId,
-      })),
-    [devices]
-  );
-
-  if (loading) return <div>Loading devices…</div>;
-  if (error) return <div style={{ color: "crimson" }}>Error: {error}</div>;
-  if (devices.length === 0) return <div>No devices found.</div>;
+  if (loading) return <div className="muted">Loading devices…</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+  if (devices.length === 0) return <div className="muted">No devices found.</div>;
 
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <label htmlFor="device">Device:</label>
-      <select
-        id="device"
-        value={selectedId ?? ""}
-        onChange={(e) => {
-          const dev = devices.find((d) => d.deviceId === e.target.value);
-          if (dev) onSelect(dev);
-        }}
-      >
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+    <div className="picker">
+      <label className="pickerLabel" htmlFor="device">
+        Device
+      </label>
+
+      <div className="selectWrap">
+        <select
+          id="device"
+          className="select"
+          value={selectedId ?? devices[0]?.deviceId ?? ""}
+          onChange={(e) => {
+            const dev = devices.find((d) => d.deviceId === e.target.value);
+            if (dev) onSelect(dev);
+          }}
+        >
+          {devices.map((d) => (
+            <option key={d.deviceId} value={d.deviceId}>
+              {d.name ? `${d.name} (${d.deviceId})` : d.deviceId}
+            </option>
+          ))}
+        </select>
+        <span className="selectArrow">▾</span>
+      </div>
     </div>
   );
 }
