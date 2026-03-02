@@ -4,10 +4,11 @@ from datetime import datetime
 from typing import Any
 
 from django.db import connection
+from psycopg import rows
 
 from telemetry.models import StarlinkMetadata
 
-from .constants import UT_TABLE
+from .constants import I_TABLE, UT_TABLE
 
 
 def _fetchall_dict(cur) -> list[dict[str, Any]]:
@@ -22,16 +23,26 @@ def _fetchone_dict(cur) -> dict[str, Any] | None:
     cols = [c[0] for c in cur.description]
     return dict(zip(cols, row))
 
-
 def list_devices_latest_location() -> list[dict[str, Any]]:
-    sql = f"""
-        SELECT DISTINCT ON (device_id)
-            device_id,
-            ut_lat,
-            ut_lon,
-            h3_cell_id
-        FROM {UT_TABLE}
-        ORDER BY device_id, ts DESC;
+    sql = """
+        SELECT DISTINCT ON (u.device_id)
+            u.device_id,
+            u.ut_lat,
+            u.ut_lon,
+            u.h3_cell_id,
+            ti.ipv4,
+            ti.ipv6_ue
+        FROM telemetry_u u
+        LEFT JOIN (
+            SELECT DISTINCT ON (device_id)
+                device_id,
+                ipv4,
+                ipv6_ue
+            FROM telemetry_i
+            ORDER BY device_id, ts DESC
+        ) ti
+        ON ti.device_id = 'ip-' || u.device_id
+        ORDER BY u.device_id, u.ts DESC;
     """
     with connection.cursor() as cur:
         cur.execute(sql)
@@ -95,6 +106,19 @@ def get_day_stats(device_id: str, dt_from: datetime, dt_to: datetime) -> dict[st
         cur.execute(sql, {"device_id": device_id, "dt_from": dt_from, "dt_to": dt_to})
         return _fetchone_dict(cur)
 
+def get_ip_address(device_id: str) -> dict[str, Any] | None:
+    device_id = f"ip-{device_id}"
+    sql = f"""
+        SELECT ipv4, ipv6_ue
+        FROM {I_TABLE}
+        WHERE device_id = %(device_id)s
+        ORDER BY ts DESC
+        LIMIT 1;
+    """
+    with connection.cursor() as cur:
+        cur.execute(sql, {"device_id": device_id})
+        return _fetchone_dict(cur)
+
 
 def get_alert_counts(device_id: str, dt_from: datetime, dt_to: datetime) -> list[dict[str, Any]]:
     sql = f"""
@@ -150,7 +174,9 @@ def get_alert_events(device_id: str, dt_from: datetime, dt_to: datetime, interva
     """
     with connection.cursor() as cur:
         cur.execute(sql, {"interval": interval, "device_id": device_id, "dt_from": dt_from, "dt_to": dt_to})
-        return [int(alert_id) for alert_id in cur.fetchall()]
+        rows = cur.fetchall()
+        return [int(row[0]) for row in rows if row and row[0] is not None]
+        # return [int(alert_id) for alert_id in cur.fetchall()]
 
 
 def get_metadata(metadata_key: str) -> list[dict[str, Any]]:

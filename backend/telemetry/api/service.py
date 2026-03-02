@@ -7,6 +7,7 @@ from ninja.errors import HttpError
 
 from .constants import BUCKET_TO_INTERVAL, METRICS_TO_SQL_COLUMN
 from .repository import (
+    get_ip_address,
     list_devices_latest_location, 
     get_device_latest, 
     get_snapshot_for_day, 
@@ -86,6 +87,8 @@ def get_devices()-> list[dict]:
             "deviceId": r["device_id"],
             "name": device_name(r["device_id"]),
             "location": {"lat": r.get("ut_lat"), "lon": r.get("ut_lon"), "h3CellId": r.get("h3_cell_id")},
+            "ipv4": r["ipv4"],
+            "ipv6": r["ipv6_ue"]
         }
         for r in rows
     ]
@@ -107,6 +110,7 @@ def get_summary(device_id: str, day_str: str)-> dict:
     snap = get_snapshot_for_day(device_id, dt_from, dt_to)
     stats = get_day_stats(device_id, dt_from, dt_to)
     counts_rows = get_alert_counts(device_id, dt_from, dt_to)
+    ip = get_ip_address(device_id)
 
     active = list(snap["active_alerts"]) if snap and snap.get("active_alerts") is not None else []
     # if len(active) > 0:
@@ -138,6 +142,8 @@ def get_summary(device_id: str, day_str: str)-> dict:
             "pingDropRateAvg": {"min": stats["drop_min"], "avg": stats["drop_avg"], "max": stats["drop_max"]},
             "obstructionPercentTime": {"min": stats["obs_min"], "avg": stats["obs_avg"], "max": stats["obs_max"]},
             "signalQuality": {"min": stats["sq_min"], "avg": stats["sq_avg"], "max": stats["sq_max"]},
+            "ipv4": ip["ipv4"] if ip else None,
+            "ipv6": ip["ipv6_ue"] if ip else None,
         },
         "alerts": {
             "active": active,
@@ -159,6 +165,7 @@ def get_timeseries(device_id: str, from_str: str, to_str: str, bucket: str, metr
     select_parts = [f'AVG({METRICS_TO_SQL_COLUMN[m]}) AS "{m}"' for m in metric_list]
     rows = get_timeseries_rows(device_id, dt_from, dt_to, interval, select_sql=", ".join(select_parts))
     events = get_alert_events(device_id, dt_from, dt_to, interval)
+    ip = get_ip_address(device_id)
 
     events_str: List[str] = []
     if len(events) != 0:
@@ -176,4 +183,5 @@ def get_timeseries(device_id: str, from_str: str, to_str: str, bucket: str, metr
         "to": dt_to.isoformat().replace("+00:00", "Z"),
         "series": series,
         "events": {"alerts": events_str},
+        "ip": {"ipv4": ip["ipv4"] if ip else None, "ipv6": ip["ipv6_ue"] if ip else None}
     }

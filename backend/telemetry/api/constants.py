@@ -38,3 +38,4 @@ METRICS_TO_SQL_COLUMN: dict[str, str] = {
 }
 
 UT_TABLE = "telemetry_u"
+I_TABLE = "telemetry_i"

@@ -9,6 +9,8 @@ export type Device = {
     h3CellId: number;
   } | null;
   activeAlerts?: number[] | null;
+  ipv4?: string | null;
+  ipv6?: string | null;
 };
 
 type DevicesResponse = {

@@ -16,6 +16,8 @@ class DeviceOut(Schema):
     deviceId: str
     name: str
     location: LocationOut
+    ipv4: str | None = None
+    ipv6: str | None = None
 
 
 class DevicesOut(Schema):
@@ -57,6 +59,7 @@ class DayStatsOut(Schema):
     pingDropRateAvg: StatTriple
     obstructionPercentTime: StatTriple
     signalQuality: StatTriple
+    ip: dict[str, str | None] | None = None
 
 class AlertEvent(Schema):
     ts: int
@@ -83,7 +86,7 @@ class TimeseriesOut(Schema):
     to: str
     series: dict[str, list[list[int | float | None]]]
 
-    # events.alerts = [[ms, alertId], ...]
+    ip: dict[str, str | None] | None = None
     events: dict[str, Any] | None = None
 
     model_config = ConfigDict(populate_by_name=True)
