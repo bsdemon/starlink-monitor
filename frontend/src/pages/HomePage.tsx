@@ -5,6 +5,7 @@ import { LocationMapLeaflet } from "../components/LocationMapLeaflet";
 import { TimeseriesSection } from "../components/TimeseriesSection";
 import { useTimeseries } from "../hooks/useTimeseries";
 import { useLiveRange } from "../hooks/useLiveRange";
+import { DeviceAlerts } from "../components/DeviceAlerts";
 
 export function HomePage() {
   const [selected, setSelected] = useState<Device | null>(null);
@@ -25,58 +26,52 @@ export function HomePage() {
     bucket,
   });
 
+
   const onSelect = useCallback((device: Device) => setSelected(device), []);
 
   const loc = useMemo(() => selected?.location ?? null, [selected]);
 
   return (
-    <div
-      style={{
-        padding: 24,
-        fontFamily: "system-ui, sans-serif",
-        maxWidth: 1100,
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ marginTop: 0 }}>Starlink Monitor</h1>
+    <div className="home">
 
       <DevicePicker selectedId={selectedId} onSelect={onSelect} />
 
-      <div style={{ marginTop: 24 }}>
-        <h2 style={{ marginBottom: 8 }}>Selected device</h2>
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 12 }}>
-          <div>
-            <strong>Device ID:</strong> {selected?.deviceId ?? "—"}
+      <div className="topRow">
+
+        <div className="chartCard">
+          <h3 className="chartCard__title">Selected device</h3>
+
+          <div className="DCard">
+            <div><strong>Device ID:</strong> {selected?.deviceId ?? "—"}</div>
+            <div><strong>Name:</strong> {selected?.name ?? "—"}</div>
           </div>
-          <div>
-            <strong>Name:</strong> {selected?.name ?? "—"}
-          </div>
-          <div>
-            <strong>Location:</strong>{" "}
-            {loc ? `${loc.lat.toFixed(6)}, ${loc.lon.toFixed(6)} (h3: ${loc.h3CellId})` : "—"}
-          </div>
+          <DeviceAlerts alerts={tsData?.events?.alerts ?? undefined} />
         </div>
+
+        {loc && (
+          <div className="chartCard">
+            <h3 className="chartCard__title">Location Map</h3>
+            <LocationMapLeaflet
+              lat={loc.lat}
+              lon={loc.lon}
+              label={selected?.name ?? selected?.deviceId ?? "Device"}
+            />
+          </div>
+        )}
       </div>
 
-      {loc && (
-        <div style={{ marginTop: 16 }}>
-          <h2 style={{ marginBottom: 8 }}>Location map</h2>
-          <LocationMapLeaflet
-            lat={loc.lat}
-            lon={loc.lon}
-            label={selected?.name ?? selected?.deviceId ?? "Device"}
-          />
-        </div>
-      )}
-
-      <TimeseriesSection
-        selectedId={selectedId}
-        range={range}
-        bucket={bucket}
-        tsData={tsData}
-        tsError={tsError}
-        debug={true} // сложи false когато приключим
-      />
+      <div className="chartGrid">
+          <div className="charts">
+            <TimeseriesSection
+              selectedId={selectedId}
+              range={range}
+              bucket={bucket}
+              tsData={tsData}
+              tsError={tsError}
+              debug={false}
+            />
+          </div>
+      </div>
     </div>
   );
 }

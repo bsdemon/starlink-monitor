@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export type TimeseriesPoint = [number, number | null]; // [unixMs, value]
 
+export type Events = {
+  alerts?: Array<[number, string]>;
+}
 export type TimeseriesResponse = {
   series: Record<string, TimeseriesPoint[]>;
-  alerts?: Array<[number, string]>;
+  events?: Events;
 };
 
 function safeSlice(s: string, n: number) {
@@ -29,7 +32,7 @@ export function useTimeseries(opts: {
     if (!opts.deviceId) return null;
 
     const p = new URLSearchParams({
-      from_: opts.from, // ✅ IMPORTANT: backend expects from_
+      from_: opts.from, // IMPORTANT: backend expects from_
       to: opts.to,
       bucket: opts.bucket,
     });

@@ -1,15 +1,13 @@
 import { useMemo } from "react";
 import uPlot from "uplot";
-import UplotReact from "uplot-react";
-import "uplot/dist/uPlot.min.css";
+import { ResponsiveUPlot } from "./ResponsiveUPlot";
 
 type Props = {
   points: Array<[number, number | null]>;
   height?: number;
-  width?: number;
 };
 
-export function DownlinkThroughputChart({ points, width = 600, height = 300 }: Props) {
+export function DownlinkThroughputChart({ points, height = 320 }: Props) {
   const data = useMemo(() => {
     const sorted = [...points].sort((a, b) => a[0] - b[0]);
     const n = sorted.length;
@@ -19,36 +17,28 @@ export function DownlinkThroughputChart({ points, width = 600, height = 300 }: P
 
     for (let i = 0; i < n; i++) {
       const [t, v] = sorted[i];
-      x[i] = t / 1000;
+      x[i] = t / 1000; // uPlot expects seconds for time scale
       y[i] = v == null ? Number.NaN : v;
     }
 
     return [x, y] as unknown as uPlot.AlignedData;
   }, [points]);
 
-  const options = useMemo<uPlot.Options>(() => {
+  const options = useMemo<Omit<uPlot.Options, "width" | "height">>(() => {
     return {
-      width,
-      height,
       scales: { x: { time: true }, y: { auto: true } },
       axes: [{ scale: "x" }, { scale: "y", label: "Mbps" }],
       series: [
         {},
         {
           label: "Downlink Throughput",
-          stroke: "currentColor",
+          stroke: "#2563eb",
           width: 2,
-          // optional: show points
-          // points: { show: false },
           value: (_u, v) => (Number.isFinite(v) ? `${v.toFixed(2)} Mbps` : "-"),
         },
       ],
     };
-  }, [width, height]);
+  }, []);
 
-  return (
-    <div style={{ color: "#2563eb" /* pick your theme color here */ }}>
-      <UplotReact options={options} data={data} />
-    </div>
-  );
+  return <ResponsiveUPlot data={data} options={options} height={height} />;
 }

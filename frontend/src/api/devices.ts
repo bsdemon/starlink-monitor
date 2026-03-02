@@ -8,6 +8,7 @@ export type Device = {
     lon: number;
     h3CellId: number;
   } | null;
+  activeAlerts?: number[] | null;
 };
 
 type DevicesResponse = {

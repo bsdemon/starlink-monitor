@@ -1,0 +1,177 @@
+body {
+  margin: 0;
+  background: #f5f7fb;
+  font-family: system-ui, sans-serif;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.header {
+  background: rgb(144, 211, 242);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.header__inner {
+  width: 100%;
+  padding: 16px 32px;   /* вместо max-width */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  font-size: 24px;
+  font-weight: 900;
+  display: auto;
+  align-items: center;
+  /* gap: 1em; */
+}
+
+/* MAIN */
+.container {
+  /* width: 100%; */
+  padding: 24px 32px;
+  flex: 1;
+}
+
+/* DEVICE + MAP ROW */
+.topRow {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+/* CARDS */
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+}
+
+/* CHARTS */
+.charts {
+  margin-top: 32px;
+  margin-bottom: 32px;
+}
+
+.chartGrid {
+  margin-top: 24px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr; /* default: 1 column */
+}
+
+@media (min-width: 1100px) {
+  .chartGrid {
+    grid-template-columns: 1fr 1fr; /* 2 columns on wide screens */
+  }
+}
+
+.chartCard {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
+}
+
+.DCard {
+  background: rgb(228, 236, 233);
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+}
+.chartCard__title {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.chartCard--wide {
+  grid-column: 1 / -1; /* spans full row */
+}
+
+/* FOOTER */
+.footer {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+}
+
+.footer__inner {
+  width: 100%;
+  padding: 16px 32px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .topRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartGrid {
+  margin-top: 24px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr;
+}
+
+.chartCard {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+}
+
+.chartCard__title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.chartCard--wide {
+  grid-column: 1 / -1;
+}
+
+.alertsBox {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.alertsHeader {
+  font-weight: 600;
+  color: #c2410c;
+  margin-bottom: 8px;
+}
+
+.alertsList {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.alertItem {
+  font-size: 14px;
+  color: #7c2d12;
+}
+
+.alertsBox--ok {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
