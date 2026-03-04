@@ -121,13 +121,12 @@ Aggregated metrics for a specific day.
     GET /api/ut/devices/{device_id}/timeseries?from=&to=&bucket=&metrics=
 
 Parameters:
-
-  parameter   description
-  ----------- -----------------------------
-  from        start ISO timestamp
-  to          end ISO timestamp
-  bucket      aggregation bucket
-  metrics     comma separated metric list
+  |parameter|description
+  |-----------|-----------------------------|
+  |from|   start ISO timestamp|
+  |to|     end ISO timestamp|
+  |bucket| aggregation bucket|
+  |metrics|comma separated metric list|
 
 Example:
 
