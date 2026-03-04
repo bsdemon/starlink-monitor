@@ -136,7 +136,7 @@ Example:
 
 ### OPEN API
     
-OPEN API docs :[http://localhost:8000/api/docs]
+OPEN API docs[http://localhost:8000/api/docs]
 
 ---------------------------------------------------------------------------
 
