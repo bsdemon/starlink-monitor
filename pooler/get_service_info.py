@@ -68,26 +68,6 @@ def get_starlink_user_terminals_data(access_token: str) -> list[dict[str, Any]]:
         return []
     return content['results']
 
-# def _extract_results(data: dict[str, Any]) -> list[dict[str, Any]]:
-#     """
-#     Extract list of results from Starlink list endpoints.
-
-#     Accepts either:
-#       {"content": {"results": [...]}}
-#     or:
-#       {"content": [...]}
-#     or:
-#       {"results": [...]}
-#     """
-#     content = data.get("content")
-#     if isinstance(content, dict):
-#         results = content.get("results")
-#         return results if isinstance(results, list) else []
-#     if isinstance(content, list):
-#         return content
-#     results = data.get("results")
-#     return results if isinstance(results, list) else []
-
 
 def _first_router_id(terminal: dict[str, Any]) -> str | None:
     routers = terminal.get("routers")
@@ -218,9 +198,6 @@ def sync_service_lines_if_due(
             if not sl_obj and service_line_number:
                 sl_obj = sl_by_number.get(service_line_number)
 
-            # Nickname logic:
-            # 1) terminal nickname (if not null)
-            # 2) service-line nickname (fallback)
             nickname = t.get("nickname")
             if not nickname and sl_obj:
                 nickname = sl_obj.get("nickname") or sl_obj.get("displayName") or sl_obj.get("name")
@@ -238,22 +215,7 @@ def sync_service_lines_if_due(
         # Store
         written = upsert_directory_rows(conn, normalized)
 
-        # Log a stable summary (not [0])
-        logger.info(
-            f"Directory sync OK: service_lines={len(service_lines)} terminals={len(terminals)} upserted={written}"
-        )
-
-        if normalized:
-            sample = normalized[0]
-            logger.info(
-                "Sample: "
-                f"Nickname={sample.get('nickname')} | "
-                f"Subscription={sample.get('service_line_number')} | "
-                f"UserTerminal={sample.get('user_terminal_id')} | "
-                f"Kit={sample.get('kit_serial_number')} | "
-                f"Dish={sample.get('dish_serial_number')} | "
-                f"Router={sample.get('router_id')}"
-            )
+        logger.info(f"Added {written} sevice lines")
 
         state["next_refresh"] = utc_now() + SERVICE_LINES_REFRESH
 

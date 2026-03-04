@@ -375,7 +375,7 @@ def poll_stream(conn: psycopg.Connection, access_token: str) -> Tuple[Dict[str, 
         - `maxLingerMs` controls how long the server waits before returning
           an empty response if no new data is available.
     """
-    logger.info("=== Polling Starlink telemetry stream... ===")
+    logger.info("=== Polling Starlink telemetry stream started! ===")
     if not access_token:
         logger.error("Access token is required to poll telemetry stream")
         return None, "no token"
@@ -414,7 +414,7 @@ def poll_stream(conn: psycopg.Connection, access_token: str) -> Tuple[Dict[str, 
 
     if rows_u or rows_r or rows_i:
         insert_rows(conn, rows_u, rows_r, rows_i)
-        logger.info(f"Inserted: {len(rows_u)}U, {len(rows_r)}R, {len(rows_i)}I")
+        logger.info(f"Inserted telemetry rows: {len(rows_u)}U, {len(rows_r)}R, {len(rows_i)}I")
 
     return payload, None
 
