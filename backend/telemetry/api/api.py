@@ -10,6 +10,9 @@ from .service import (
 api = NinjaAPI(title="Starlink UT API")
 router = Router(tags=["ut"])
 
+@api.get("/health")
+def health_check(request):
+    return {"status": "ok"}
 
 @router.get("/ut/devices", response=DevicesOut)
 def list_devices(request):
