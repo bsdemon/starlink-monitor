@@ -36,10 +36,9 @@ docker compose up --build
 ```
 
 ## Portal
-Open portal:
 
-
-[http://localhost:5173]
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000/api
 
 
 ------------------------------------------------------------------------
@@ -138,7 +137,7 @@ Example:
 
 ### OPEN API
     
-[http://localhost:8000/api/docs]
+OPEN API docs :[http://localhost:8000/api/docs]
 
 ---------------------------------------------------------------------------
 
