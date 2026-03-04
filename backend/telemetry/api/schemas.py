@@ -12,10 +12,19 @@ class LocationOut(Schema):
     h3CellId: int | None = None
 
 
+class DeviceInfoOut(Schema):
+    nickname: str | None = None
+    subscriptionId: str | None = None
+    kitSerialNumberId: str | None = None
+    dishSerialNumberId: str | None = None
+    routerId: str | None = None
+    lastUpdated: str | None = None  # ISO
+
+
 class DeviceOut(Schema):
     deviceId: str
-    name: str
     location: LocationOut
+    info: DeviceInfoOut | None = None
     ipv4: str | None = None
     ipv6: str | None = None
 

@@ -162,6 +162,7 @@ class TelemetryI(TimescaleModel):
         return f"I {self.device_id} @ {self.ts.isoformat()}"
     
 
+
 class StarlinkMetadata(models.Model):
     """
     Stores Starlink telemetry metadata (enums/mappings) as JSON.
@@ -174,3 +175,20 @@ class StarlinkMetadata(models.Model):
 
     class Meta:
         db_table = "starlink_metadata"
+
+
+class StarlinkDeviceInfo(models.Model):
+    """
+    Stores static device information (e.g. hardware/software versions) for Starlink devices.
+    Updated whenever device info changes, keyed by device_id.
+    """
+    device_id = models.TextField(primary_key=True)
+    nickname = models.TextField(null=True, blank=True)
+    subscription_id = models.TextField(null=True, blank=True)
+    user_terminal_kit_id = models.TextField(null=True, blank=True)
+    user_terminal_dish_id = models.TextField(null=True, blank=True)
+    router_id = models.TextField(null=True, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "starlink_device_info"

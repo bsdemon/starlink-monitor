@@ -21,11 +21,6 @@ from .repository import (
 from .helpers import clamp_bucket, parse_iso_datetime
 
 
-def device_name(device_id: str) -> str:
-    suffix = device_id[-4:] if len(device_id) >= 4 else device_id
-    return f"UT-{suffix}"
-
-
 def parse_metrics(metrics: str | None) -> list[str]:
     default = [
         "downlinkMbps",
@@ -85,10 +80,17 @@ def get_devices()-> list[dict]:
     return [
         {
             "deviceId": r["device_id"],
-            "name": device_name(r["device_id"]),
             "location": {"lat": r.get("ut_lat"), "lon": r.get("ut_lon"), "h3CellId": r.get("h3_cell_id")},
             "ipv4": r["ipv4"],
-            "ipv6": r["ipv6_ue"]
+            "ipv6": r["ipv6_ue"],
+            "info" :{
+                "nickname": r.get("nickname"),
+                "subscriptionId": r.get("subscription_id"),
+                "kitSerialNumberId": r.get("user_terminal_kit_id"),
+                "dishSerialNumberId": r.get("user_terminal_dish_id"),
+                "routerId": r.get("router_id")
+            }
+            
         }
         for r in rows
     ]

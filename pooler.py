@@ -3,7 +3,7 @@ import sys
 import time
 import json
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Tuple
 
 import h3
@@ -12,6 +12,15 @@ from psycopg import sql
 import requests
 import psycopg
 
+from get_service_info import sync_service_lines_if_due
+
+
+SERVICE_LINES_REFRESH = timedelta(minutes=10)
+SERVICE_LINES_RETRY = timedelta(minutes=5)
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 METADATA_KEY = "telemetry_stream_metadata"
 
@@ -36,7 +45,6 @@ def compute_checksum(obj: Any) -> str:
     raw = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
-
 def h3_to_latlon(h3_cell_id: int) -> tuple[float, float]:
     # H3 Python works with hex string, so convert int -> hex
     h = format(h3_cell_id, "x")
@@ -46,7 +54,6 @@ def h3_to_latlon(h3_cell_id: int) -> tuple[float, float]:
 def ns_to_ts(utc_timestamp_ns: int) -> datetime:
     return datetime.fromtimestamp(utc_timestamp_ns / 1e9, tz=timezone.utc)
 
-
 def connect_db() -> psycopg.Connection:
     dsn = os.environ.get("DATABASE_URL")
     if not dsn:
@@ -55,11 +62,9 @@ def connect_db() -> psycopg.Connection:
     conn = psycopg.connect(dsn, autocommit=False)
     return conn
 
-
 def build_row_dict(columns: List[str], values: List[Any]) -> Dict[str, Any]:
     """ Map column name -> value by position """
     return dict(zip(columns, values))
-
 
 def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], List[Tuple], List[Tuple]]:
     """
@@ -71,7 +76,7 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
     telemetry_values = response_json["data"]["values"]
     cols_by_type = response_json["data"]["columnNamesByDeviceType"]
 
-    logger.info(f"---->> Values len is: {len(telemetry_values)}<<--------")
+    logger.info(f"---->> Telemetry stream len is: {len(telemetry_values)}<<--------")
     cols_u = cols_by_type.get("u", [])
     cols_r = cols_by_type.get("r", [])
     cols_i = cols_by_type.get("i", [])
@@ -211,7 +216,6 @@ def parse_stream_payload(response_json: Dict[str, Any]) -> Tuple[List[Tuple], Li
             continue
     return rows_u, rows_r, rows_i
 
-
 def copy_rows(cur: psycopg.Cursor, table: str, columns: List[str], rows: List[Tuple]) -> None:
     if not rows:
         return
@@ -226,7 +230,6 @@ def copy_rows(cur: psycopg.Cursor, table: str, columns: List[str], rows: List[Tu
     with cur.copy(query) as copy:
         for row in rows:
             copy.write_row(row)
-
 
 def insert_rows(conn: psycopg.Connection, rows_u: List[Tuple], rows_r: List[Tuple], rows_i: List[Tuple]) -> None:
     with conn.cursor() as cur:
@@ -335,6 +338,7 @@ def upsert_metadata(conn: psycopg.Connection, payload: Dict[str, Any]) -> None:
             """,
             (METADATA_KEY, json.dumps(meta, ensure_ascii=False), checksum),
         )
+
 def safe_rollback(conn):
     try:
         if conn and not conn.closed:
@@ -342,7 +346,7 @@ def safe_rollback(conn):
     except Exception as exc:
         logger.exception("Rollback failed: %s", exc)
 
-def poll_stream():
+def poll_stream(conn: psycopg.Connection, access_token: str) -> Tuple[Dict[str, Any] | None, str | None]:
     """
     Continuously polls the Starlink Telemetry Stream API using long-polling.
 
@@ -357,7 +361,6 @@ def poll_stream():
         - If no data is available, an empty batch is returned after the linger timeout.
 
     Behavior:
-        - Automatically refreshes the OAuth access token if it expires.
         - Parses the received telemetry payload into device-specific rows.
         - Performs batched ingestion into TimescaleDB using COPY.
         - Retries on transient network or database errors with a small backoff.
@@ -372,61 +375,80 @@ def poll_stream():
         - `maxLingerMs` controls how long the server waits before returning
           an empty response if no new data is available.
     """
+    logger.info("=== Polling Starlink telemetry stream... ===")
+    if not access_token:
+        logger.error("Access token is required to poll telemetry stream")
+        return None, "no token"
+
+    resp = requests.post(
+        "https://starlink.com/api/public/v2/telemetry/stream",
+        json={"batchSize": 1000, "maxLingerMs": 15000},
+        headers={
+            "content-type": "application/json",
+            "accept": "*/*",
+            "Authorization": f"Bearer {access_token}",
+        },
+        timeout=40,
+    )
+
+    if resp.status_code in (401, 403):
+        logger.warning(f"Unauthorized access when polling telemetry stream: {resp.status_code} {resp.text}")
+        return None, "token_expired"
+
+    resp.raise_for_status()
+    payload = resp.json()
+
+    try:
+        upsert_metadata(conn, payload)
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"Metadata upsert failed: {e}")
+        safe_rollback(conn)
+
+    telemetry = payload["data"]["values"]
+    if not telemetry:
+        logger.info("No telemetry received")
+        return None, None
+
+    rows_u, rows_r, rows_i = parse_stream_payload(payload)
+
+    if rows_u or rows_r or rows_i:
+        insert_rows(conn, rows_u, rows_r, rows_i)
+        logger.info(f"Inserted: {len(rows_u)}U, {len(rows_r)}R, {len(rows_i)}I")
+
+    return payload, None
+
+def main():
     access_token = get_starlink_access_token()
     if not access_token:
-        logger.error("Failed to obtain Starlink access token. Exiting.")
+        logger.error("Failed to obtain Starlink access token")
         sys.exit(1)
 
     conn = connect_db()
 
+    service_state = {
+        "next_refresh": utc_now()
+    }
+
     while True:
         try:
-            resp = requests.post(
-                "https://starlink.com/api/public/v2/telemetry/stream",
-                json={"batchSize": 1000, "maxLingerMs": 15000},
-                headers={
-                    "content-type": "application/json",
-                    "accept": "*/*",
-                    "Authorization": "Bearer " + access_token,
-                },
-                timeout=40,
-            )
+            sync_service_lines_if_due(conn, access_token, service_state)
 
-            if resp.status_code in (401, 403):
-                # Token expires ~15 minutes, refresh 
+            _, err = poll_stream(conn, access_token)
+
+            if err == "token_expired":
+                logger.warning(" Access token expired, refreshing...")
                 access_token = get_starlink_access_token()
-                continue
-            resp.raise_for_status()
 
-            payload = resp.json()
-
-            try:
-                upsert_metadata(conn, payload)
-                conn.commit()  # commit metadata write (small and safe)
-            except Exception as e:
-                # Metadata should not block ingestion.
-                logger.warning(f"Metadata upsert failed: {e}")
-                safe_rollback(conn)
-
-            telemetry = payload["data"]["values"]
-            if not telemetry:
-                logger.info("No telemetry received")
-                continue
-
-            rows_u, rows_r, rows_i = parse_stream_payload(payload)
-            if rows_u or rows_r or rows_i:
-                insert_rows(conn, rows_u, rows_r, rows_i)
-                logger.info(f"Inserted: {len(rows_u)}U, {len(rows_r)}R, {len(rows_i)}I")
         except (requests.RequestException, ValueError):
-            # Network/JSON issues: small backoff
             time.sleep(2)
             continue
+
         except psycopg.Error as e:
             logger.exception(f"DB error during ingest: {e}")
             safe_rollback(conn)
             time.sleep(2)
             continue
 
-
 if __name__ == "__main__":
-    poll_stream()
+    main()

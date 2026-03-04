@@ -25,24 +25,43 @@ def _fetchone_dict(cur) -> dict[str, Any] | None:
 
 def list_devices_latest_location() -> list[dict[str, Any]]:
     sql = """
-        SELECT DISTINCT ON (u.device_id)
-            u.device_id,
-            u.ut_lat,
-            u.ut_lon,
-            u.h3_cell_id,
-            ti.ipv4,
-            ti.ipv6_ue
-        FROM telemetry_u u
-        LEFT JOIN (
+        WITH latest_u AS (
+            SELECT DISTINCT ON (device_id)
+                device_id,
+                ut_lat,
+                ut_lon,
+                h3_cell_id
+            FROM telemetry_u
+            ORDER BY device_id, ts DESC
+        ),
+        latest_i AS (
             SELECT DISTINCT ON (device_id)
                 device_id,
                 ipv4,
                 ipv6_ue
             FROM telemetry_i
             ORDER BY device_id, ts DESC
-        ) ti
-        ON ti.device_id = 'ip-' || u.device_id
-        ORDER BY u.device_id, u.ts DESC;
+        )
+        SELECT
+            u.device_id,
+            u.ut_lat,
+            u.ut_lon,
+            u.h3_cell_id,
+            i.ipv4,
+            i.ipv6_ue,
+
+            sdi.nickname,
+            sdi.subscription_id,
+            sdi.user_terminal_kit_id,
+            sdi.user_terminal_dish_id,
+            sdi.router_id,
+            sdi.last_updated
+        FROM latest_u u
+        LEFT JOIN latest_i i
+            ON i.device_id = 'ip-' || u.device_id
+        LEFT JOIN starlink_device_info sdi
+            ON sdi.device_id = u.device_id
+        ORDER BY u.device_id;
     """
     with connection.cursor() as cur:
         cur.execute(sql)

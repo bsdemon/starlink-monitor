@@ -17,6 +17,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 COPY pyproject.toml uv.lock /app/
 RUN uv sync --frozen --no-dev
 
+COPY get_service_info.py /app/get_service_info.py
 COPY pooler.py /app/pooler.py
 
 CMD ["uv", "run", "python", "pooler.py"]
