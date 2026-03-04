@@ -8,7 +8,7 @@ import { useLiveRange } from "../hooks/useLiveRange";
 import { DeviceAlerts } from "../components/DeviceAlerts";
 
 type Bucket = "15s" | "1m" | "5m" | "15m" | "1h" | "1d";
-type RangePreset = "5m" | "15m" | "30m" | "1h" | "3h" | "6h" | "12h" | "24h";
+type RangePreset = "5m" | "15m" | "30m" | "1h" | "3h" | "6h" | "12h" | "24h" | "30d";
 
 const WINDOW_BY_PRESET: Record<RangePreset, number> = {
   "5m": 5 * 60 * 1000,
@@ -19,6 +19,7 @@ const WINDOW_BY_PRESET: Record<RangePreset, number> = {
   "6h": 6 * 60 * 60 * 1000,
   "12h": 12 * 60 * 60 * 1000,
   "24h": 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
 const BUCKET_BY_PRESET: Record<RangePreset, Bucket> = {
@@ -29,7 +30,8 @@ const BUCKET_BY_PRESET: Record<RangePreset, Bucket> = {
   "3h": "15s",
   "6h": "15s",
   "12h": "15s",
-  "24h": "15s", // change to "1h" if you want more points
+  "24h": "15s", 
+  "30d": "1h", 
 };
 
 function RangePicker({
@@ -40,12 +42,13 @@ function RangePicker({
   onChange: (v: RangePreset) => void;
 }) {
   return (
-    <div className="rangePicker">
-      <label className="rangeLabel">Range:</label>
+    <div className="picker">
+      <label className="pickerLabel">Range:</label>
+      <div className="selectWrap">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as RangePreset)}
-        className="rangeSelect"
+        className="select"
       >
         <option value="5m">Last 5 min</option>
         <option value="15m">Last 15 min</option>
@@ -55,7 +58,10 @@ function RangePicker({
         <option value="6h">Last 6 h</option>
         <option value="12h">Last 12 h</option>
         <option value="24h">Last 24 h</option>
+        <option value="30d">Last 30 days</option>
       </select>
+      <span className="selectArrow">▾</span>
+      </div>
     </div>
   );
 }
@@ -87,17 +93,18 @@ export function HomePage() {
 
   return (
     <div className="home">
-      <DevicePicker selectedId={selectedId} onSelect={onSelect} />
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-        <RangePicker value={preset} onChange={setPreset} />
-        <div className="bucketPill" title="Bucket is tied to selected range">
-          bucket: {bucket}
-        </div>
-      </div>
 
       <div className="topRow">
         <div className="chartCard">
+          <DevicePicker selectedId={selectedId} onSelect={onSelect} />
+
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+            <RangePicker value={preset} onChange={setPreset} />
+          </div>
+          <div className="bucketPill" title="Bucket is tied to selected range">
+            bucket: {bucket}
+          </div>
           <h3 className="chartCard__title">Selected device</h3>
 
           <div className="DCard">
@@ -105,13 +112,25 @@ export function HomePage() {
               <strong>Device ID:</strong> {selected?.deviceId ?? "—"}
             </div>
             <div>
-              <strong>Name:</strong> {selected?.name ?? "—"}
+              <strong>Name:</strong> {selected?.info?.nickname ?? "—"}
             </div>
             <div>
               <strong>IP:</strong> {selected?.ipv4 ?? "—"}
             </div>
             <div>
               <strong>IPv6:</strong> {selected?.ipv6 ?? "—"}
+            </div>
+            <div>
+              <strong>Subscription ID:</strong> {selected?.info?.subscriptionId ?? "—"}
+            </div>
+            <div>
+              <strong>KIT serial number:</strong> {selected?.info?.kitSerialNumberId ?? "—"}
+            </div>
+            <div>
+              <strong>Dish serial number:</strong> {selected?.info?.dishSerialNumberId ?? "—"}
+            </div>
+            <div>
+              <strong>Router serial number:</strong> {selected?.info?.routerId ?? "—"}
             </div>
           </div>
 
@@ -124,7 +143,7 @@ export function HomePage() {
             <LocationMapLeaflet
               lat={loc.lat}
               lon={loc.lon}
-              label={selected?.name ?? selected?.deviceId ?? "Device"}
+              label={selected?.info?.nickname ?? selected?.deviceId ?? "Device"}
             />
           </div>
         )}

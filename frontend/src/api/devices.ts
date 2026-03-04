@@ -8,7 +8,7 @@ export type Device = {
     h3CellId: number;
   } | null;
   info? :{
-    subscription_id: string | null;
+    subscriptionId: string | null;
     kitSerialNumberId: string | null;
     dishSerialNumberId: string | null;
     routerId: string | null;

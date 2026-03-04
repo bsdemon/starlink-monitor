@@ -56,13 +56,6 @@ export function TimeseriesSection({
     [tsData]
   );
 
-  // const signalQualityPoints = useMemo(
-  //   () => {
-  //     return pickSeries(tsData?.series, "signalQuality");
-  //   },
-  //   [tsData]
-  // );
-
   const signalQualityPoints = useMemo(() => {
     const pts = pickSeries(tsData?.series, "signalQuality");
 
@@ -100,7 +93,7 @@ export function TimeseriesSection({
           </div>
         )}
 
-        <ThroughputChart downlink={downlinkPoints} uplink={uplinkPoints} />
+        <ThroughputChart downlink={downlinkPoints} uplink={uplinkPoints} range={range}/>
       </div>
 
       {/* PING LATENCY */}
@@ -109,7 +102,7 @@ export function TimeseriesSection({
         {pingLatencyPoints.length === 0 ? (
           <div style={{ opacity: 0.6 }}>No ping latency data.</div>
         ) : (
-          <PingLatencyChart points={pingLatencyPoints} />
+          <PingLatencyChart points={pingLatencyPoints} range={range}/>
         )}
       </div>
 
@@ -119,7 +112,7 @@ export function TimeseriesSection({
         {pingDropRatePoints.length === 0 ? (
           <div style={{ opacity: 0.6 }}>No packet loss data.</div>
         ) : (
-          <PacketLossChart points={pingDropRatePoints} />
+          <PacketLossChart points={pingDropRatePoints} range={range}/>
         )}
       </div>
 
@@ -129,7 +122,7 @@ export function TimeseriesSection({
         {obstructionPercentTimePoints.length === 0 ? (
           <div style={{ opacity: 0.6 }}>No obstruction data.</div>
         ) : (
-            <ObstructionPercentTimeChart points={obstructionPercentTimePoints} />
+            <ObstructionPercentTimeChart points={obstructionPercentTimePoints} range={range}/>
         )}
       </div>
 
@@ -139,7 +132,7 @@ export function TimeseriesSection({
         {signalQualityPoints.length === 0 ? (
           <div style={{ opacity: 0.6 }}>No signal quality data.</div>
         ) : (
-            <SignalQualityChart points={signalQualityPoints} />
+            <SignalQualityChart points={signalQualityPoints} range={range}/>
         )}
       </div>
     </>

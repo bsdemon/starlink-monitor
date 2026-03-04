@@ -9,7 +9,8 @@ export type RangePreset =
   | "3h"
   | "6h"
   | "12h"
-  | "24h";
+  | "24h"
+  | "30d";
 
 type Props = {
   value: RangePreset;
@@ -27,24 +28,28 @@ export function RangePicker({ value, onChange }: Props) {
       { value: "6h", label: "Last 6 h" },
       { value: "12h", label: "Last 12 h" },
       { value: "24h", label: "Last 24 h" },
+      { value: "30d", label: "Last 30 days"}
     ],
     []
   );
 
   return (
-    <div className="rangePicker">
-      <label className="rangeLabel">Range:</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as RangePreset)}
-        className="rangeSelect"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+    <div className="picker">
+      <label className="pickerLabel">Range:</label>
+      <div className="selectWrap">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value as RangePreset)}
+          className="rangeSelect"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span className="selectArrow">▾</span>
+        </div>
     </div>
   );
 }
