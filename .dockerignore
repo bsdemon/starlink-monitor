@@ -1,0 +1,17 @@
+.git
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+node_modules/
+frontend/node_modules/
+dist/
+build/
+*.log
+
+# timescale volume не е тук, но пазим repo чист
+timescaledb_data
